@@ -1,4 +1,6 @@
 'use client';
+import PlayIcon from '@/components/PlayIcon';
+import Spinner from '@/components/Spin';
 import { Value } from '@/util/countdownClosest';
 import { isValidNumber, isValidTarget } from '@/util/validateNumber';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -143,10 +145,12 @@ export default function Home() {
 				</div>
 
 				<button
-					className="px-4 py-3 rounded-lg transition hover:bg-black/5 text-center w-32 font-medium uppercase"
+					className="px-4 py-3 rounded-lg transition hover:bg-black/5 text-center w-32 font-medium uppercase inline-flex items-center"
 					type="submit"
 				>
-					{loading ? 'Loading' : 'Run'}
+					<span className="grow text-center">{loading ? 'Loading' : 'Run'}</span>
+
+					{loading ? <Spinner className="text-lg" /> : <PlayIcon className="text-xl opacity-90" />}
 				</button>
 			</form>
 
