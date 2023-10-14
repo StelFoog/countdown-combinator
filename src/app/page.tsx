@@ -1,113 +1,167 @@
-import Image from 'next/image'
+'use client';
+import { Value } from '@/util/countdownClosest';
+import { isValidNumber, isValidTarget } from '@/util/validateNumber';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { twMerge } from 'tailwind-merge';
 
 export default function Home() {
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
-      </div>
+	const [loading, setLoading] = useState(false);
+	const [results, setResults] = useState<Value[]>();
+	const [timeTaken, setTimeTaken] = useState<number>();
 
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px] z-[-1]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
+	const targetRef = useRef<HTMLInputElement>(null);
+	const [target, setTarget] = useState<string>('');
 
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
+	const numbersRefs = [
+		useRef<HTMLInputElement>(null),
+		useRef<HTMLInputElement>(null),
+		useRef<HTMLInputElement>(null),
+		useRef<HTMLInputElement>(null),
+		useRef<HTMLInputElement>(null),
+		useRef<HTMLInputElement>(null),
+	];
+	const numbersStates = [
+		useState(''),
+		useState(''),
+		useState(''),
+		useState(''),
+		useState(''),
+		useState(''),
+	];
 
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
+	const workerRef = useRef<Worker>();
+	useEffect(() => {
+		workerRef.current = new Worker(new URL('../util/countdownWorker.ts', import.meta.url));
+		workerRef.current.onmessage = (
+			event: MessageEvent<{ results: Value[]; timeTaken: number }>
+		) => {
+			setLoading(false);
+			setResults(event.data.results);
+			setTimeTaken(event.data.timeTaken);
+		};
+		workerRef.current.onerror = (error) => {
+			setLoading(false);
+			console.error(error);
+		};
 
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore the Next.js 13 playground.
-          </p>
-        </a>
+		return () => {
+			workerRef.current?.terminate();
+		};
+	}, []);
 
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
-  )
+	const runWorker = () => {
+		setLoading(true);
+		workerRef.current?.postMessage({
+			target: Number(target),
+			numbers: numbersStates.map(([value]) => Number(value)),
+		});
+	};
+
+	const bestResult = useMemo(() => {
+		if (!results) return undefined;
+
+		let minDist = Number.MAX_SAFE_INTEGER;
+		const sorted = results.sort((a, b) => a.used.length - b.used.length);
+		for (let i = 0; i < sorted.length; i++) {
+			const dist = Math.abs(sorted[i].value - Number(target));
+			if (dist < minDist) {
+				minDist = dist;
+			}
+		}
+
+		return sorted.find(({ value }) => Math.abs(value - Number(target)) === minDist)!;
+	}, [results]);
+
+	return (
+		<main className="flex min-h-screen flex-col items-center p-24">
+			<h1 className="uppercase text-5xl font-semibold tracking-wider text-center mb-12">
+				Countdown
+				<br />
+				Combinator
+			</h1>
+
+			<form
+				onSubmit={(e) => {
+					e.preventDefault();
+					runWorker();
+				}}
+				className="flex flex-col items-center gap-8"
+			>
+				<div className="flex flex-col gap-2 items-center">
+					<label className="font-medium">Target</label>
+					<input
+						ref={targetRef}
+						className={twMerge(
+							'text-black font-medium p-2 rounded-lg shadow-inner bg-white text-center w-32',
+							'border-2 border-transparent transition duration-300',
+							target.length > 0 && !isValidTarget(target) && 'border-orange-500'
+						)}
+						value={target}
+						onKeyDown={(event) => {
+							if (event.code === 'Space') {
+								event.preventDefault();
+								const nextRef = event.shiftKey
+									? numbersRefs[numbersRefs.length - 1]
+									: numbersRefs[0];
+								nextRef.current?.focus();
+								nextRef.current?.select();
+							}
+						}}
+						onChange={(event) => setTarget(event.target.value.replace(/[^\d]/g, ''))}
+					/>
+				</div>
+				<div className="flex flex-col gap-2 items-center">
+					<label className="font-medium">Numbers</label>
+					<div className="flex gap-2">
+						{numbersRefs.map((ref, index) => {
+							const [state, setState] = numbersStates[index];
+							return (
+								<input
+									key={index}
+									ref={ref}
+									className={twMerge(
+										'text-black font-medium p-2 rounded-lg shadow-inner bg-white text-center w-14',
+										'border-2 border-transparent transition duration-300',
+										state.length > 0 && !isValidNumber(state) && 'border-orange-500'
+									)}
+									value={state}
+									onChange={(event) =>
+										setState(event.target.value.replace(/[^\d]/g, '').slice(0, 3))
+									}
+									onKeyDown={(event) => {
+										if (event.code === 'Space') {
+											event.preventDefault();
+											const nextRef = numbersRefs[index + (event.shiftKey ? -1 : 1)] ?? targetRef;
+											nextRef.current?.focus();
+											nextRef.current?.select();
+										}
+									}}
+								/>
+							);
+						})}
+					</div>
+				</div>
+
+				<button
+					className="px-4 py-3 rounded-lg transition hover:bg-black/5 text-center w-32 font-medium uppercase"
+					type="submit"
+				>
+					{loading ? 'Loading' : 'Run'}
+				</button>
+			</form>
+
+			{bestResult && (
+				<div className="flex flex-col mt-12">
+					<p>
+						Got: {bestResult.value}{' '}
+						{bestResult.value !== Number(target) &&
+							`(${Math.abs(bestResult.value - Number(target))} away)`}
+					</p>
+					<p>Way: {bestResult.way}</p>
+					<p>In: {timeTaken}ms</p>
+					<p>Ways: {results?.filter(({ value }) => bestResult.value === value).length}</p>
+				</div>
+			)}
+		</main>
+	);
 }
