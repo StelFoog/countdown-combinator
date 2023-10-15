@@ -21,7 +21,7 @@ export default function Spinner({ className }: SpinnerProps) {
 					cy="12"
 					r="10"
 					stroke="currentColor"
-					stroke-width="4"
+					strokeWidth="4"
 					opacity={0.25}
 				></circle>
 				<path

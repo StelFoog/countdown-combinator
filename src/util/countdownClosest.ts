@@ -1,6 +1,4 @@
-type Expression = '+' | '-' | '*' | '/';
-
-export type Value = { value: number; way: string; used: number[]; lastExpr?: Expression };
+import { CountdownClosestResult, Expression, Value } from './types';
 
 function cleanWay(value: Value, ...on: Expression[]) {
 	if (on.includes(value.lastExpr!)) return value.way.slice(1, -1);
@@ -46,11 +44,16 @@ function div(a: Value, b: Value): Value {
 export function search(
 	target: number,
 	values: Value[],
-	completed: Set<string> = new Set<string>()
+	completed: Set<string>,
+	getSolutionsCertainly: boolean
 ): Value[] {
 	const definedAs = values
-		.map(({ way }) => way)
-		.sort()
+		.sort((a, b) =>
+			a.value > b.value ? 1 : a.value < b.value ? -1 : a.way > b.way ? 1 : a.way < b.way ? -1 : 0
+		)
+		// .map(({ way }) => way)
+		// .map(({ value }) => value)
+		.map(({ value, way }) => (getSolutionsCertainly ? way : value))
 		.join('_');
 	if (completed.has(definedAs)) return [];
 
@@ -64,16 +67,18 @@ export function search(
 			const one = values[i];
 			const two = values[j];
 			const rest = values.filter((_, index) => index !== i && index !== j);
-			results.push(...search(target, [add(one, two), ...rest], completed));
-			results.push(...search(target, [mult(one, two), ...rest], completed));
-			results.push(...search(target, [sub(one, two), ...rest], completed));
-			results.push(...search(target, [sub(two, one), ...rest], completed));
+			results.push(...search(target, [add(one, two), ...rest], completed, getSolutionsCertainly));
+			results.push(...search(target, [mult(one, two), ...rest], completed, getSolutionsCertainly));
+			if (getSolutionsCertainly || one <= two)
+				results.push(...search(target, [sub(one, two), ...rest], completed, getSolutionsCertainly));
+			if (getSolutionsCertainly || one >= two)
+				results.push(...search(target, [sub(two, one), ...rest], completed, getSolutionsCertainly));
 			const oneOverTwo = div(one, two);
 			if (Number.isInteger(oneOverTwo.value))
-				results.push(...search(target, [oneOverTwo, ...rest], completed));
+				results.push(...search(target, [oneOverTwo, ...rest], completed, getSolutionsCertainly));
 			const twoOverOne = div(two, one);
 			if (Number.isInteger(twoOverOne.value))
-				results.push(...search(target, [twoOverOne, ...rest], completed));
+				results.push(...search(target, [twoOverOne, ...rest], completed, getSolutionsCertainly));
 		}
 	}
 
@@ -83,16 +88,17 @@ export function search(
 
 export default function countdownClosest(
 	target: number,
-	numbers: number[]
-): { results: Value[]; timeTaken: number } {
+	numbers: number[],
+	getSolutionsCertainly: boolean = false
+): CountdownClosestResult {
 	const values = numbers.map((number) => ({ value: number, way: String(number), used: [number] }));
 	const start = new Date();
 	const completed = new Set<string>();
 
-	const results = search(target, values, completed);
+	const results = search(target, values, completed, getSolutionsCertainly);
 	const timeTaken = new Date().getTime() - start.getTime();
 
-	return { results, timeTaken };
+	return { results, timeTaken, target };
 
 	let minDist = Number.MAX_SAFE_INTEGER;
 	const sorted = results.sort((a, b) => a.used.length - b.used.length);

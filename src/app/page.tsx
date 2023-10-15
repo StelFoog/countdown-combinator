@@ -1,18 +1,20 @@
 'use client';
 import PlayIcon from '@/components/PlayIcon';
-import Spinner from '@/components/Spin';
-import { Value } from '@/util/countdownClosest';
+import useRotatingPlaceholders from '@/util/useRotatingPlaceholders';
+import useFocusState from '@/util/useFocusState';
 import { isValidNumber, isValidTarget } from '@/util/validateNumber';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { twMerge } from 'tailwind-merge';
+import Button from '@/components/Button';
+import { CountdownClosestResult, Value } from '@/util/types';
 
 export default function Home() {
 	const [loading, setLoading] = useState(false);
-	const [results, setResults] = useState<Value[]>();
-	const [timeTaken, setTimeTaken] = useState<number>();
+	const [result, setResult] = useState<CountdownClosestResult>();
 
 	const targetRef = useRef<HTMLInputElement>(null);
 	const [target, setTarget] = useState<string>('');
+	const [targetIsFocused, targetFocusProps] = useFocusState(targetRef);
 
 	const numbersRefs = [
 		useRef<HTMLInputElement>(null),
@@ -22,7 +24,7 @@ export default function Home() {
 		useRef<HTMLInputElement>(null),
 		useRef<HTMLInputElement>(null),
 	];
-	const numbersStates = [
+	const numberStates = [
 		useState(''),
 		useState(''),
 		useState(''),
@@ -30,16 +32,25 @@ export default function Home() {
 		useState(''),
 		useState(''),
 	];
+	const numberFocusStates = numbersRefs.map((ref) => useFocusState(ref));
+
+	const anyInputSet = useMemo(
+		() =>
+			Boolean(target) ||
+			numberStates.some(([state]) => state) ||
+			targetIsFocused ||
+			numberFocusStates.some(([isFocused]) => isFocused),
+		[target, numberStates, targetIsFocused]
+	);
+
+	const { targetPlaceholder, numberPlaceholders } = useRotatingPlaceholders(!anyInputSet);
 
 	const workerRef = useRef<Worker>();
 	useEffect(() => {
 		workerRef.current = new Worker(new URL('../util/countdownWorker.ts', import.meta.url));
-		workerRef.current.onmessage = (
-			event: MessageEvent<{ results: Value[]; timeTaken: number }>
-		) => {
+		workerRef.current.onmessage = (event: MessageEvent<CountdownClosestResult>) => {
 			setLoading(false);
-			setResults(event.data.results);
-			setTimeTaken(event.data.timeTaken);
+			setResult(event.data);
 		};
 		workerRef.current.onerror = (error) => {
 			setLoading(false);
@@ -55,15 +66,15 @@ export default function Home() {
 		setLoading(true);
 		workerRef.current?.postMessage({
 			target: Number(target),
-			numbers: numbersStates.map(([value]) => Number(value)),
+			numbers: numberStates.map(([value]) => Number(value)),
 		});
 	};
 
 	const bestResult = useMemo(() => {
-		if (!results) return undefined;
+		if (!result) return undefined;
 
 		let minDist = Number.MAX_SAFE_INTEGER;
-		const sorted = results.sort((a, b) => a.used.length - b.used.length);
+		const sorted = result.results.sort((a, b) => a.used.length - b.used.length);
 		for (let i = 0; i < sorted.length; i++) {
 			const dist = Math.abs(sorted[i].value - Number(target));
 			if (dist < minDist) {
@@ -72,7 +83,7 @@ export default function Home() {
 		}
 
 		return sorted.find(({ value }) => Math.abs(value - Number(target)) === minDist)!;
-	}, [results]);
+	}, [result]);
 
 	return (
 		<main className="flex min-h-screen flex-col items-center p-24">
@@ -98,7 +109,10 @@ export default function Home() {
 							'border-2 border-transparent transition duration-300',
 							target.length > 0 && !isValidTarget(target) && 'border-orange-500'
 						)}
+						placeholder={targetIsFocused ? undefined : targetPlaceholder}
 						value={target}
+						onChange={(event) => setTarget(event.target.value.replace(/[^\d]/g, ''))}
+						{...targetFocusProps}
 						onKeyDown={(event) => {
 							if (event.code === 'Space') {
 								event.preventDefault();
@@ -109,14 +123,14 @@ export default function Home() {
 								nextRef.current?.select();
 							}
 						}}
-						onChange={(event) => setTarget(event.target.value.replace(/[^\d]/g, ''))}
 					/>
 				</div>
 				<div className="flex flex-col gap-2 items-center">
 					<label className="font-medium">Numbers</label>
 					<div className="flex gap-2">
 						{numbersRefs.map((ref, index) => {
-							const [state, setState] = numbersStates[index];
+							const [state, setState] = numberStates[index];
+							const [isFocused, focusProps] = numberFocusStates[index];
 							return (
 								<input
 									key={index}
@@ -126,10 +140,12 @@ export default function Home() {
 										'border-2 border-transparent transition duration-300',
 										state.length > 0 && !isValidNumber(state) && 'border-orange-500'
 									)}
+									placeholder={isFocused ? undefined : numberPlaceholders[index]}
 									value={state}
 									onChange={(event) =>
 										setState(event.target.value.replace(/[^\d]/g, '').slice(0, 3))
 									}
+									{...focusProps}
 									onKeyDown={(event) => {
 										if (event.code === 'Space') {
 											event.preventDefault();
@@ -144,14 +160,10 @@ export default function Home() {
 					</div>
 				</div>
 
-				<button
-					className="px-4 py-3 rounded-lg transition hover:bg-black/5 text-center w-32 font-medium uppercase inline-flex items-center"
-					type="submit"
-				>
-					<span className="grow text-center">{loading ? 'Loading' : 'Run'}</span>
-
-					{loading ? <Spinner className="text-lg" /> : <PlayIcon className="text-xl opacity-90" />}
-				</button>
+				<Button type="submit" loading={loading} className={twMerge('w-28 font-medium uppercase')}>
+					<span className="ml-1">Run</span>
+					<PlayIcon className="text-xl" />
+				</Button>
 			</form>
 
 			{bestResult && (
@@ -159,11 +171,11 @@ export default function Home() {
 					<p>
 						Got: {bestResult.value}{' '}
 						{bestResult.value !== Number(target) &&
-							`(${Math.abs(bestResult.value - Number(target))} away)`}
+							`(${Math.abs(bestResult.value - result!.target)} away)`}
 					</p>
 					<p>Way: {bestResult.way}</p>
-					<p>In: {timeTaken}ms</p>
-					<p>Ways: {results?.filter(({ value }) => bestResult.value === value).length}</p>
+					<p>In: {result?.timeTaken}ms</p>
+					<p>Ways: {result?.results.filter(({ value }) => bestResult.value === value).length}</p>
 				</div>
 			)}
 		</main>
