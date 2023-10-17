@@ -7,10 +7,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { twMerge } from 'tailwind-merge';
 import Button from '@/components/Button';
 import { CountdownClosestResult, Value } from '@/util/types';
+import doesPreferReducedMotion from '@/util/doesPreferReducedMotion';
 
 export default function Home() {
 	const [loading, setLoading] = useState(false);
 	const [result, setResult] = useState<CountdownClosestResult>();
+	const [placeholdesArePaused, setPlaceholdersArePaused] = useState(doesPreferReducedMotion());
 
 	const targetRef = useRef<HTMLInputElement>(null);
 	const [target, setTarget] = useState<string>('');
@@ -34,16 +36,19 @@ export default function Home() {
 	];
 	const numberFocusStates = numbersRefs.map((ref) => useFocusState(ref));
 
-	const anyInputSet = useMemo(
-		() =>
-			Boolean(target) ||
-			numberStates.some(([state]) => state) ||
-			targetIsFocused ||
-			numberFocusStates.some(([isFocused]) => isFocused),
-		[target, numberStates, targetIsFocused]
+	const anyFocused = useMemo(
+		() => targetIsFocused || numberFocusStates.some(([isFocused]) => isFocused),
+		[targetIsFocused, numberFocusStates]
 	);
 
-	const { targetPlaceholder, numberPlaceholders } = useRotatingPlaceholders(!anyInputSet);
+	const anyHasValue = useMemo(
+		() => Boolean(target) || numberStates.some(([state]) => state),
+		[target, numberStates]
+	);
+
+	const { targetPlaceholder, numberPlaceholders } = useRotatingPlaceholders(
+		!placeholdesArePaused && !anyFocused && !anyHasValue
+	);
 
 	const workerRef = useRef<Worker>();
 	useEffect(() => {
@@ -86,20 +91,27 @@ export default function Home() {
 	}, [result]);
 
 	return (
-		<main className="flex min-h-screen flex-col items-center p-24">
+		<main className="flex min-h-screen flex-col items-center p-24 relative">
 			<h1 className="uppercase text-5xl font-semibold tracking-wider text-center mb-12">
 				Countdown
 				<br />
 				Combinator
 			</h1>
 
-			<form
-				onSubmit={(e) => {
-					e.preventDefault();
-					runWorker();
-				}}
-				className="flex flex-col items-center gap-8"
-			>
+			<div className="absolute top-0 right-0 m-3 opacity-90">
+				<label className="flex gap-1 items-center leading-none">
+					<span className="text-sm">Placeholders</span>
+					<button
+						className="border border-white disabled:border-gray-300 disabled:text-gray-300 rounded flex items-center justify-center w-5 h-5 text-xs"
+						disabled={anyHasValue}
+						onClick={() => setPlaceholdersArePaused((paused) => !paused)}
+					>
+						{placeholdesArePaused ? '⏵' : '⏸'}
+					</button>
+				</label>
+			</div>
+
+			<div className="flex flex-col items-center gap-8">
 				<div className="flex flex-col gap-2 items-center">
 					<label className="font-medium">Target</label>
 					<input
@@ -121,6 +133,10 @@ export default function Home() {
 									: numbersRefs[0];
 								nextRef.current?.focus();
 								nextRef.current?.select();
+							}
+							if (event.code === 'Enter') {
+								event.preventDefault();
+								runWorker();
 							}
 						}}
 					/>
@@ -153,6 +169,10 @@ export default function Home() {
 											nextRef.current?.focus();
 											nextRef.current?.select();
 										}
+										if (event.code === 'Enter') {
+											event.preventDefault();
+											runWorker();
+										}
 									}}
 								/>
 							);
@@ -160,11 +180,15 @@ export default function Home() {
 					</div>
 				</div>
 
-				<Button type="submit" loading={loading} className={twMerge('w-28 font-medium uppercase')}>
+				<Button
+					loading={loading}
+					onClick={runWorker}
+					className={twMerge('w-28 font-medium uppercase')}
+				>
 					<span className="ml-1">Run</span>
 					<PlayIcon className="text-xl" />
 				</Button>
-			</form>
+			</div>
 
 			{bestResult && (
 				<div className="flex flex-col mt-12">

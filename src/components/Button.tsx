@@ -24,8 +24,8 @@ export default function Button({
 			type={type}
 			onClick={!loading ? onClick : undefined}
 			className={twMerge(
-				'h-12 px-4 rounded-lg transition leading-none',
-				'border-white/90 border hover:bg-gray-900/10',
+				'h-12 px-4 rounded-lg transition duration-200 leading-none',
+				'border border-white/90 hover:border-white hover:bg-gray-900/10',
 				'inline-flex items-center',
 				loading ? 'justify-center' : 'justify-between',
 				className
