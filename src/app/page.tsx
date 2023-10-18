@@ -6,8 +6,11 @@ import { isValidNumber, isValidTarget } from '@/util/validateNumber';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { twMerge } from 'tailwind-merge';
 import Button from '@/components/Button';
-import { CountdownClosestResult, Value } from '@/util/types';
+import { CountdownClosestResult } from '@/util/types';
 import doesPreferReducedMotion from '@/util/doesPreferReducedMotion';
+import ClearIcon from '@/components/ClearIcon';
+import Results from './Results';
+import SendIcon from '@/components/SendIcon';
 
 export default function Home() {
 	const [loading, setLoading] = useState(false);
@@ -67,28 +70,18 @@ export default function Home() {
 		};
 	}, []);
 
-	const runWorker = () => {
+	function runWorker() {
 		setLoading(true);
 		workerRef.current?.postMessage({
 			target: Number(target),
 			numbers: numberStates.map(([value]) => Number(value)),
 		});
-	};
+	}
 
-	const bestResult = useMemo(() => {
-		if (!result) return undefined;
-
-		let minDist = Number.MAX_SAFE_INTEGER;
-		const sorted = result.results.sort((a, b) => a.used.length - b.used.length);
-		for (let i = 0; i < sorted.length; i++) {
-			const dist = Math.abs(sorted[i].value - Number(target));
-			if (dist < minDist) {
-				minDist = dist;
-			}
-		}
-
-		return sorted.find(({ value }) => Math.abs(value - Number(target)) === minDist)!;
-	}, [result]);
+	function sendPlaceholdersToValues() {
+		setTarget(targetPlaceholder ?? '');
+		numberStates.forEach(([, setState], index) => setState(numberPlaceholders[index] ?? ''));
+	}
 
 	return (
 		<main className="flex min-h-screen flex-col items-center p-24 relative">
@@ -99,16 +92,26 @@ export default function Home() {
 			</h1>
 
 			<div className="absolute top-0 right-0 m-3 opacity-90">
-				<label className="flex gap-1 items-center leading-none">
-					<span className="text-sm">Placeholders</span>
+				<p className="text-sm mb-1">Placeholders</p>
+				<div className="flex gap-1 justify-end">
 					<button
-						className="border border-white disabled:border-gray-300 disabled:text-gray-300 rounded flex items-center justify-center w-5 h-5 text-xs"
-						disabled={anyHasValue}
+						className={twMerge(
+							'border border-white rounded flex items-center justify-center w-5 h-5 text-xs',
+							anyHasValue && 'border-gray-200/90 text-gray-200/90'
+						)}
 						onClick={() => setPlaceholdersArePaused((paused) => !paused)}
 					>
 						{placeholdesArePaused ? '⏵' : '⏸'}
 					</button>
-				</label>
+					<button
+						className={twMerge(
+							'border border-white rounded flex items-center justify-center w-5 h-5 text-xs'
+						)}
+						onClick={sendPlaceholdersToValues}
+					>
+						<SendIcon />
+					</button>
+				</div>
 			</div>
 
 			<div className="flex flex-col items-center gap-8">
@@ -180,28 +183,26 @@ export default function Home() {
 					</div>
 				</div>
 
-				<Button
-					loading={loading}
-					onClick={runWorker}
-					className={twMerge('w-28 font-medium uppercase')}
-				>
-					<span className="ml-1">Run</span>
-					<PlayIcon className="text-xl" />
-				</Button>
+				<div className="flex gap-4">
+					<Button
+						onClick={() => {
+							setTarget('');
+							numberStates.forEach(([, setState]) => setState(''));
+						}}
+						disabled={!anyHasValue}
+						className="w-28 px-3.5 font-medium uppercase"
+					>
+						<span>Clear</span>
+						<ClearIcon className="text-xl" />
+					</Button>
+					<Button onClick={runWorker} loading={loading} className="w-28 font-medium uppercase">
+						<span className="ml-1">Run</span>
+						<PlayIcon className="text-xl" />
+					</Button>
+				</div>
 			</div>
 
-			{bestResult && (
-				<div className="flex flex-col mt-12">
-					<p>
-						Got: {bestResult.value}{' '}
-						{bestResult.value !== Number(target) &&
-							`(${Math.abs(bestResult.value - result!.target)} away)`}
-					</p>
-					<p>Way: {bestResult.way}</p>
-					<p>In: {result?.timeTaken}ms</p>
-					<p>Ways: {result?.results.filter(({ value }) => bestResult.value === value).length}</p>
-				</div>
-			)}
+			<Results results={result} />
 		</main>
 	);
 }
